@@ -1,0 +1,4 @@
+networks:
+  default:
+    name: t2s-net
+    external: true

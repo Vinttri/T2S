@@ -1,0 +1,800 @@
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useDatabase } from "@/contexts/DatabaseContext";
+import { useToast } from "@/components/ui/use-toast";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { buildApiUrl, API_CONFIG } from "@/config/api";
+import { csrfHeaders } from "@/lib/csrf";
+
+interface DatabaseModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+interface ConnectionStep {
+  message: string;
+  status: 'pending' | 'success' | 'error';
+}
+
+const DatabaseModal = ({ open, onOpenChange }: DatabaseModalProps) => {
+  const [connectionMode, setConnectionMode] = useState<'url' | 'manual'>('url');
+  const [selectedDatabase, setSelectedDatabase] = useState("");
+  const [connectionUrl, setConnectionUrl] = useState("");
+  const [host, setHost] = useState("localhost");
+  const [port, setPort] = useState("");
+  const [database, setDatabase] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [schema, setSchema] = useState("");
+  const [schemaError, setSchemaError] = useState("");
+  const [impalaAuthMechanism, setImpalaAuthMechanism] = useState("NOSASL");
+  const [impalaUseSsl, setImpalaUseSsl] = useState(true);
+  const [impalaVerifyCert, setImpalaVerifyCert] = useState(false);
+  const [impalaHttpTransport, setImpalaHttpTransport] = useState(false);
+  const [impalaHttpPath, setImpalaHttpPath] = useState("");
+  // Snowflake-specific fields
+  const [account, setAccount] = useState("");
+  const [snowflakeSchema, setSnowflakeSchema] = useState("PUBLIC");
+  const [warehouse, setWarehouse] = useState("COMPUTE_WH");
+  const [authMode, setAuthMode] = useState<'password' | 'keypair'>('password');
+  const [privateKey, setPrivateKey] = useState("");
+  const [privateKeyPassphrase, setPrivateKeyPassphrase] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionSteps, setConnectionSteps] = useState<ConnectionStep[]>([]);
+  const { refreshGraphs } = useDatabase();
+  const { toast } = useToast();
+
+  const addStep = (message: string, status: 'pending' | 'success' | 'error' = 'pending') => {
+    setConnectionSteps(prev => {
+      // If adding a new pending step, mark the previous pending step as success
+      if (status === 'pending' && prev.length > 0) {
+        const lastStep = prev[prev.length - 1];
+        if (lastStep.status === 'pending') {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...lastStep, status: 'success' };
+          return [...updated, { message, status }];
+        }
+      }
+
+      // If updating status (success/error), update the last pending step instead of adding new
+      if (status !== 'pending' && prev.length > 0) {
+        const lastStep = prev[prev.length - 1];
+        if (lastStep.status === 'pending') {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...lastStep, status };
+          return updated;
+        }
+      }
+
+      // Default: just add the new step
+      return [...prev, { message, status }];
+    });
+  };
+
+  const handleConnect = async () => {
+    // Validate based on connection mode
+    if (connectionMode === 'url') {
+      if (!connectionUrl || !selectedDatabase) {
+        toast({
+          title: "Missing Information",
+          description: "Please select database type and enter connection URL",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (selectedDatabase === 'snowflake') {
+        if (!account || !database || !username) {
+          toast({
+            title: "Missing Information",
+            description: "Please fill in all required fields (account, database, username)",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (authMode === 'keypair' && !privateKey) {
+          toast({
+            title: "Missing Information",
+            description: "Please paste your private key in PEM format",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (selectedDatabase === 'impala') {
+        if (!selectedDatabase || !host || !port || !database) {
+          toast({
+            title: "Missing Information",
+            description: "Please fill in host, port, and database",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        if (!selectedDatabase || !host || !port || !database || !username) {
+          toast({
+            title: "Missing Information",
+            description: "Please fill in all required fields",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+    
+    setIsConnecting(true);
+    setConnectionSteps([]); // Clear previous steps
+    
+    try {
+      // Build the connection URL
+      let dbUrl = connectionUrl;
+      if (connectionMode === 'manual') {
+        if (selectedDatabase === 'snowflake') {
+          // Build Snowflake URL: snowflake://user@account/database/schema?warehouse=WH
+          const builtUrl = new URL(`snowflake://${account}/${database}/${snowflakeSchema}`);
+          builtUrl.username = username;
+          if (authMode === 'keypair' && privateKey) {
+            // Base64-encode the PEM key for safe URL transport
+            builtUrl.searchParams.set('private_key', btoa(privateKey));
+            if (privateKeyPassphrase) {
+              builtUrl.searchParams.set('private_key_passphrase', privateKeyPassphrase);
+            }
+          } else {
+            builtUrl.password = password;
+          }
+          builtUrl.searchParams.set('warehouse', warehouse);
+          dbUrl = builtUrl.toString();
+        } else if (selectedDatabase === 'impala') {
+          const protocol = impalaHttpTransport ? 'impala+http' : 'impala';
+          const builtUrl = new URL(`${protocol}://${host}:${port}/${database}`);
+          if (username.trim()) {
+            builtUrl.username = username;
+          }
+          if (password) {
+            builtUrl.password = password;
+          }
+          builtUrl.searchParams.set('auth_mechanism', impalaAuthMechanism || 'NOSASL');
+          builtUrl.searchParams.set('use_ssl', impalaUseSsl ? 'true' : 'false');
+          builtUrl.searchParams.set('verify_cert', impalaVerifyCert ? 'true' : 'false');
+          if (impalaHttpTransport) {
+            builtUrl.searchParams.set('use_http_transport', 'true');
+            if (impalaHttpPath.trim()) {
+              builtUrl.searchParams.set('http_path', impalaHttpPath.trim());
+            }
+          }
+          dbUrl = builtUrl.toString();
+        } else {
+          const protocol = selectedDatabase === 'mysql' ? 'mysql' : 'postgresql';
+          const builtUrl = new URL(`${protocol}://${host}:${port}/${database}`);
+          builtUrl.username = username;
+          builtUrl.password = password;
+
+          // Append schema option for PostgreSQL if provided
+          if (selectedDatabase === 'postgresql' && schema.trim()) {
+            if (/[^a-zA-Z0-9_]/.test(schema.trim())) {
+              throw new Error('Schema name can only contain letters, digits, and underscores');
+            }
+            builtUrl.searchParams.set('options', `-csearch_path=${schema.trim()}`);
+          }
+
+          dbUrl = builtUrl.toString();
+        }
+      }
+
+      // Make streaming request
+      const response = await fetch(buildApiUrl('/database'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...csrfHeaders(),
+        },
+        body: JSON.stringify({ url: dbUrl }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        if (errorData?.error) {
+          throw new Error(errorData.error);
+        }
+
+        // Fallback error messages by status code
+        const errorMessages: Record<number, string> = {
+          400: 'Invalid database connection URL.',
+          401: 'Not authenticated. Please sign in to connect databases.',
+          403: 'Access denied. You do not have permission to connect databases.',
+          409: 'Conflict with existing database connection.',
+          422: 'Invalid database connection parameters.',
+          500: 'Server error. Please try again later.',
+        };
+
+        throw new Error(errorMessages[response.status] || `Failed to connect to database (${response.status})`);
+      }
+
+      // Process streaming response
+      if (!response.body) {
+        throw new Error('Streaming response has no body');
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const delimiter = API_CONFIG.STREAM_BOUNDARY;
+
+      const processChunk = (text: string) => {
+        if (!text || !text.trim()) return;
+        
+        let obj: any = null;
+        try {
+          obj = JSON.parse(text);
+        } catch (e) {
+          console.error('Failed to parse chunk as JSON', e, text);
+          return;
+        }
+
+        if (obj.type === 'reasoning_step') {
+          // Show incremental step
+          addStep(obj.message || 'Working...', 'pending');
+        } else if (obj.type === 'final_result') {
+          // Mark last step as success/error and finish
+          addStep(obj.message || 'Completed', obj.success ? 'success' : 'error');
+          setIsConnecting(false);
+          
+          if (obj.success) {
+            toast({
+              title: "Connected Successfully",
+        variant: "success",
+              description: "Database connection established!",
+            });
+            setTimeout(async () => {
+              await refreshGraphs();
+              onOpenChange(false);
+              // Reset form
+              setConnectionMode('url');
+              setSelectedDatabase("");
+              setConnectionUrl("");
+              setHost("localhost");
+              setPort("");
+              setDatabase("");
+              setUsername("");
+              setPassword("");
+              setSchema("");
+              setSchemaError("");
+              setImpalaAuthMechanism("NOSASL");
+              setImpalaUseSsl(true);
+              setImpalaVerifyCert(false);
+              setImpalaHttpTransport(false);
+              setImpalaHttpPath("");
+              setAccount("");
+              setSnowflakeSchema("PUBLIC");
+              setWarehouse("COMPUTE_WH");
+              setAuthMode('password');
+              setPrivateKey("");
+              setPrivateKeyPassphrase("");
+              setConnectionSteps([]);
+            }, 1000);
+          } else {
+            toast({
+              title: "Connection Failed",
+              description: obj.message || 'Unknown error',
+              variant: "destructive",
+            });
+          }
+        } else if (obj.type === 'error') {
+          addStep(obj.message || 'Error', 'error');
+          setIsConnecting(false);
+          toast({
+            title: "Connection Error",
+            description: obj.message || 'Unknown error',
+            variant: "destructive",
+          });
+        }
+      };
+
+      const pump = async (): Promise<void> => {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          if (buffer.length > 0) {
+            processChunk(buffer);
+          }
+          setIsConnecting(false);
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split(delimiter);
+        // Last piece is possibly incomplete
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          processChunk(part);
+        }
+        
+        return pump();
+      };
+
+      await pump();
+      
+    } catch (error) {
+      setIsConnecting(false);
+      toast({
+        title: "Connection Failed",
+        description: error instanceof Error ? error.message : "Failed to connect to database",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold text-card-foreground">
+            Connect to Database
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Connect to PostgreSQL, MySQL, Snowflake, or Impala database using a connection URL or manual entry.{" "}
+            <a
+              href="https://www.falkordb.com/privacy-policy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Privacy Policy
+            </a>
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 mt-6" data-testid="database-modal-content">
+          {/* Database Type Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="database-type" className="text-sm font-medium">
+              Database Type
+            </Label>
+            <Select onValueChange={setSelectedDatabase} value={selectedDatabase}>
+              <div data-testid="database-type-select">
+                <SelectTrigger className="bg-muted border-border focus:ring-ring">
+                  <SelectValue placeholder="-- Select Database --" />
+                </SelectTrigger>
+              </div>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="postgresql" className="focus:bg-primary/20 focus:text-foreground" data-testid="postgresql-option">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-blue-500 rounded-sm mr-2"></div>
+                    PostgreSQL
+                  </div>
+                </SelectItem>
+                <SelectItem value="mysql" className="focus:bg-primary/20 focus:text-foreground" data-testid="mysql-option">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-orange-500 rounded-sm mr-2"></div>
+                    MySQL
+                  </div>
+                </SelectItem>
+                <SelectItem value="snowflake" className="focus:bg-primary/20 focus:text-foreground" data-testid="snowflake-option">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-cyan-500 rounded-sm mr-2"></div>
+                    Snowflake
+                  </div>
+                </SelectItem>
+                <SelectItem value="impala" className="focus:bg-primary/20 focus:text-foreground" data-testid="impala-option">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-emerald-500 rounded-sm mr-2"></div>
+                    Impala
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Connection Mode Toggle */}
+          {selectedDatabase && (
+            <div className="flex gap-2 p-1 bg-muted rounded-lg">
+              <Button
+                type="button"
+                variant={connectionMode === 'url' ? 'default' : 'ghost'}
+                className={`flex-1 ${connectionMode === 'url' ? 'bg-primary hover:bg-primary/90' : ''}`}
+                onClick={() => setConnectionMode('url')}
+                data-testid="connection-mode-url"
+              >
+                Connection URL
+              </Button>
+              <Button
+                type="button"
+                variant={connectionMode === 'manual' ? 'default' : 'ghost'}
+                className={`flex-1 ${connectionMode === 'manual' ? 'bg-primary hover:bg-primary/90' : ''}`}
+                onClick={() => setConnectionMode('manual')}
+                data-testid="connection-mode-manual"
+              >
+                Manual Entry
+              </Button>
+            </div>
+          )}
+
+          {selectedDatabase && connectionMode === 'url' && (
+            <div className="space-y-2">
+              <Label htmlFor="connection-url" className="text-sm font-medium">
+                Connection URL
+              </Label>
+              <Input
+                id="connection-url"
+                data-testid="connection-url-input"
+                placeholder={
+                  selectedDatabase === 'postgresql'
+                    ? 'postgresql://username:password@host:5432/database'
+                    : selectedDatabase === 'mysql'
+                    ? 'mysql://username:password@host:3306/database'
+                    : selectedDatabase === 'impala'
+                    ? 'impala://impalad.mas-impala.svc.cluster.local:21050/dm_mis?auth_mechanism=NOSASL&use_ssl=true&verify_cert=false'
+                    : 'snowflake://username:password@account/database/schema?warehouse=warehouse_name'
+                }
+                value={connectionUrl}
+                onChange={(e) => setConnectionUrl(e.target.value)}
+                className="bg-muted border-border font-mono text-sm focus-visible:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">
+                {selectedDatabase === 'snowflake'
+                  ? 'Enter your Snowflake connection string (schema defaults to PUBLIC, warehouse to COMPUTE_WH)'
+                  : selectedDatabase === 'impala'
+                  ? 'Enter an Impala HS2 connection string. Use YAML upload when you need FK/column metadata from files.'
+                  : 'Enter your database connection string'}
+              </p>
+            </div>
+          )}
+
+          {selectedDatabase && connectionMode === 'manual' && (
+            <>
+              {selectedDatabase === 'snowflake' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="account" className="text-sm font-medium">Account</Label>
+                    <Input
+                      id="account"
+                      placeholder="myorg-account"
+                      value={account}
+                      onChange={(e) => setAccount(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your Snowflake account identifier (e.g., myorg-account)
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="database" className="text-sm font-medium">Database Name</Label>
+                    <Input
+                      id="database"
+                      placeholder="my_database"
+                      value={database}
+                      onChange={(e) => setDatabase(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="snowflake-schema" className="text-sm font-medium">Schema</Label>
+                    <Input
+                      id="snowflake-schema"
+                      placeholder="PUBLIC"
+                      value={snowflakeSchema}
+                      onChange={(e) => setSnowflakeSchema(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Defaults to PUBLIC if not specified
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="warehouse" className="text-sm font-medium">Warehouse</Label>
+                    <Input
+                      id="warehouse"
+                      placeholder="COMPUTE_WH"
+                      value={warehouse}
+                      onChange={(e) => setWarehouse(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Defaults to COMPUTE_WH if not specified
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-sm font-medium">Username</Label>
+                    <Input
+                      id="username"
+                      placeholder="username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  {/* Auth Mode Toggle */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Authentication</Label>
+                    <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                      <Button
+                        type="button"
+                        variant={authMode === 'password' ? 'default' : 'ghost'}
+                        className={`flex-1 ${authMode === 'password' ? 'bg-primary hover:bg-primary/90' : ''}`}
+                        onClick={() => setAuthMode('password')}
+                        size="sm"
+                      >
+                        Password
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={authMode === 'keypair' ? 'default' : 'ghost'}
+                        className={`flex-1 ${authMode === 'keypair' ? 'bg-primary hover:bg-primary/90' : ''}`}
+                        onClick={() => setAuthMode('keypair')}
+                        size="sm"
+                      >
+                        Key Pair
+                      </Button>
+                    </div>
+                  </div>
+
+                  {authMode === 'password' ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="bg-muted border-border focus-visible:ring-ring"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="private-key" className="text-sm font-medium">Private Key (PEM)</Label>
+                        <textarea
+                          id="private-key"
+                          placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"}
+                          value={privateKey}
+                          onChange={(e) => setPrivateKey(e.target.value)}
+                          rows={4}
+                          className="w-full rounded-md bg-muted border border-border px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Paste your RSA private key in PEM format. Generate one with: openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="passphrase" className="text-sm font-medium">Key Passphrase (optional)</Label>
+                        <Input
+                          id="passphrase"
+                          type="password"
+                          placeholder="optional passphrase"
+                          value={privateKeyPassphrase}
+                          onChange={(e) => setPrivateKeyPassphrase(e.target.value)}
+                          className="bg-muted border-border focus-visible:ring-ring"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="host" className="text-sm font-medium">Host</Label>
+                    <Input
+                      id="host"
+                      placeholder="localhost"
+                      value={host}
+                      onChange={(e) => setHost(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="port" className="text-sm font-medium">Port</Label>
+                    <Input
+                      id="port"
+                      placeholder={selectedDatabase === "postgresql" ? "5432" : selectedDatabase === "impala" ? "21050" : "3306"}
+                      value={port}
+                      onChange={(e) => setPort(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="database" className="text-sm font-medium">Database Name</Label>
+                    <Input
+                      id="database"
+                      placeholder="my_database"
+                      value={database}
+                      onChange={(e) => setDatabase(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-sm font-medium">
+                      Username {selectedDatabase === 'impala' && <span className="text-muted-foreground font-normal">(optional)</span>}
+                    </Label>
+                    <Input
+                      id="username"
+                      placeholder="username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password {selectedDatabase === 'impala' && <span className="text-muted-foreground font-normal">(optional)</span>}
+                    </Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="bg-muted border-border focus-visible:ring-ring"
+                    />
+                  </div>
+
+                  {/* Schema field - PostgreSQL only */}
+                  {selectedDatabase === 'postgresql' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="schema" className="text-sm font-medium">
+                        Schema <span className="text-muted-foreground font-normal">(optional)</span>
+                      </Label>
+                      <Input
+                        id="schema"
+                        data-testid="schema-input"
+                        placeholder="public"
+                        value={schema}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSchema(val);
+                          if (val && /[^a-zA-Z0-9_]/.test(val)) {
+                            setSchemaError('Schema name can only contain letters, digits, and underscores');
+                          } else {
+                            setSchemaError('');
+                          }
+                        }}
+                        className={`bg-muted border-border ${schemaError ? 'border-red-500' : ''}`}
+                      />
+                      {schemaError ? (
+                        <p className="text-xs text-red-500">{schemaError}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty to use the default &apos;public&apos; schema
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {selectedDatabase === 'impala' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="impala-auth" className="text-sm font-medium">Auth Mechanism</Label>
+                        <Input
+                          id="impala-auth"
+                          placeholder="NOSASL"
+                          value={impalaAuthMechanism}
+                          onChange={(e) => setImpalaAuthMechanism(e.target.value)}
+                          className="bg-muted border-border focus-visible:ring-ring"
+                          data-testid="impala-auth-input"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                        <div>
+                          <Label htmlFor="impala-use-ssl" className="text-sm font-medium">Use SSL</Label>
+                          <p className="text-xs text-muted-foreground">Enabled by default for secured Impala endpoints.</p>
+                        </div>
+                        <Switch
+                          id="impala-use-ssl"
+                          checked={impalaUseSsl}
+                          onCheckedChange={setImpalaUseSsl}
+                          data-testid="impala-use-ssl-switch"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                        <div>
+                          <Label htmlFor="impala-verify-cert" className="text-sm font-medium">Verify SSL Certificate</Label>
+                          <p className="text-xs text-muted-foreground">Disabled by default for internal certificates.</p>
+                        </div>
+                        <Switch
+                          id="impala-verify-cert"
+                          checked={impalaVerifyCert}
+                          onCheckedChange={setImpalaVerifyCert}
+                          disabled={!impalaUseSsl}
+                          data-testid="impala-verify-cert-switch"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                        <div>
+                          <Label htmlFor="impala-http" className="text-sm font-medium">HS2 HTTP Transport</Label>
+                          <p className="text-xs text-muted-foreground">Use port 28000 when enabled.</p>
+                        </div>
+                        <Switch
+                          id="impala-http"
+                          checked={impalaHttpTransport}
+                          onCheckedChange={setImpalaHttpTransport}
+                          data-testid="impala-http-switch"
+                        />
+                      </div>
+
+                      {impalaHttpTransport && (
+                        <div className="space-y-2">
+                          <Label htmlFor="impala-http-path" className="text-sm font-medium">
+                            HTTP Path <span className="text-muted-foreground font-normal">(optional)</span>
+                          </Label>
+                          <Input
+                            id="impala-http-path"
+                            placeholder="cliservice"
+                            value={impalaHttpPath}
+                            onChange={(e) => setImpalaHttpPath(e.target.value)}
+                            className="bg-muted border-border focus-visible:ring-ring"
+                            data-testid="impala-http-path-input"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* Connection Progress Steps */}
+          {connectionSteps.length > 0 && (
+            <div className="mt-4 space-y-2 max-h-[220px] overflow-y-auto border border-border rounded-md p-3 bg-muted/30">
+              {connectionSteps.map((step, index) => (
+                <div key={index} className="flex items-start gap-2 text-sm">
+                  {step.status === 'pending' && (
+                    <Loader2 className="w-4 h-4 mt-0.5 text-blue-500 animate-spin flex-shrink-0" />
+                  )}
+                  {step.status === 'success' && (
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
+                  )}
+                  {step.status === 'error' && (
+                    <XCircle className="w-4 h-4 mt-0.5 text-red-500 flex-shrink-0" />
+                  )}
+                  <span className={`flex-1 ${
+                    step.status === 'error' ? 'text-red-400' : 'text-card-foreground'
+                  }`}>
+                    {step.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end space-x-3 mt-6">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isConnecting}
+            className="hover:bg-primary/20 hover:text-foreground"
+            data-testid="cancel-database-button"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConnect}
+            disabled={!selectedDatabase || isConnecting}
+            className="bg-primary hover:bg-primary/90"
+            data-testid="connect-database-button"
+          >
+            {isConnecting ? "Connecting..." : "Connect"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default DatabaseModal;

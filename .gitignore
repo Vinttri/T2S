@@ -1,0 +1,44 @@
+.env
+.venv
+*.pyc
+.vscode/
+*_conf*
+.ruff_code/
+.vercel/
+
+# Test artifacts
+test-results/
+playwright-report/
+tests/e2e/screenshots/*.png
+.pytest_cache/
+
+# Temporary test files
+*.tmp
+tmp_*
+*.d.ts
+node_modules/
+
+# Frontend build outputs
+/app/public/js/*
+/app/dist/
+
+.jinja_cache/
+demo_tokens.py
+.DS_Store
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+e2e/.auth/
+# Build artifacts
+clients/python/t2s_client.egg-info/
+clients/ts/dist/
+.t2s-build-notes.md
+
+# session/build artifacts
+.tmp-*
+__pycache__/
+scratch_*
+/private/tmp/

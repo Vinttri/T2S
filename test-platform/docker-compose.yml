@@ -1,0 +1,93 @@
+name: leaderboard-bench-app
+
+services:
+  backend:
+    image: ${BENCH_BACKEND_IMAGE:-leaderboard-bench-app:latest}
+    pull_policy: never
+    container_name: ${BENCH_BACKEND_CONTAINER_NAME:-benchmark-backend}
+    restart: "no"
+    expose:
+      - "8090"
+    env_file:
+      - path: ${BENCH_ENV_FILE:-./.env}
+        required: false
+    environment:
+      PORT: "8090"
+      BENCH_APP_RUNNER_MODE: "worker"
+      BENCH_APP_WS_SNAPSHOT_INTERVAL_S: "${BENCH_APP_WS_SNAPSHOT_INTERVAL_S:-2}"
+      BENCH_APP_CIRCUIT_BREAKER_ENABLED: "${BENCH_APP_CIRCUIT_BREAKER_ENABLED:-1}"
+      BENCH_APP_CIRCUIT_BREAKER_FAILURES: "${BENCH_APP_CIRCUIT_BREAKER_FAILURES:-5}"
+    volumes:
+      - ${BENCH_DATA_DIR:-./data}:/data
+      - ${BENCH_REVIEWS_DIR:-./reviews}:/reviews
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: ${BENCH_BACKEND_MEM_LIMIT:-512m}
+    cpus: ${BENCH_BACKEND_CPUS:-1.0}
+
+  worker:
+    image: ${BENCH_BACKEND_IMAGE:-leaderboard-bench-app:latest}
+    pull_policy: never
+    container_name: ${BENCH_WORKER_CONTAINER_NAME:-benchmark-worker}
+    restart: "no"
+    depends_on:
+      - backend
+    env_file:
+      - path: ${BENCH_ENV_FILE:-./.env}
+        required: false
+    environment:
+      BENCH_APP_RUNNER_MODE: "worker"
+      BENCH_WORKER_POLL_INTERVAL_S: "${BENCH_WORKER_POLL_INTERVAL_S:-1}"
+      BENCH_WORKER_HEARTBEAT_S: "${BENCH_WORKER_HEARTBEAT_S:-5}"
+      BENCH_WORKER_STALE_AFTER_S: "${BENCH_WORKER_STALE_AFTER_S:-900}"
+      BENCH_WORKER_WATCHDOG_INTERVAL_S: "${BENCH_WORKER_WATCHDOG_INTERVAL_S:-30}"
+      BENCH_WORKER_MAX_JOB_ATTEMPTS: "${BENCH_WORKER_MAX_JOB_ATTEMPTS:-3}"
+      BENCH_APP_CIRCUIT_BREAKER_ENABLED: "${BENCH_APP_CIRCUIT_BREAKER_ENABLED:-1}"
+      BENCH_APP_CIRCUIT_BREAKER_FAILURES: "${BENCH_APP_CIRCUIT_BREAKER_FAILURES:-5}"
+    volumes:
+      - ${BENCH_DATA_DIR:-./data}:/data
+      - ${BENCH_REVIEWS_DIR:-./reviews}:/reviews
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-m", "bench_app.worker"]
+    healthcheck:
+      disable: true
+    mem_limit: ${BENCH_WORKER_MEM_LIMIT:-2g}
+    cpus: ${BENCH_WORKER_CPUS:-2.0}
+
+  backup:
+    image: ${BENCH_BACKEND_IMAGE:-leaderboard-bench-app:latest}
+    pull_policy: never
+    container_name: ${BENCH_BACKUP_CONTAINER_NAME:-benchmark-backup}
+    restart: "no"
+    depends_on:
+      - backend
+    env_file:
+      - path: ${BENCH_ENV_FILE:-./.env}
+        required: false
+    environment:
+      BENCH_BACKUP_ENABLED: "${BENCH_BACKUP_ENABLED:-1}"
+      BENCH_BACKUP_INTERVAL_S: "${BENCH_BACKUP_INTERVAL_S:-1800}"
+      BENCH_BACKUP_KEEP: "${BENCH_BACKUP_KEEP:-48}"
+      BENCH_BACKUP_DIR: "${BENCH_BACKUP_DIR:-/backups}"
+    volumes:
+      - ${BENCH_DATA_DIR:-./data}:/data
+      - ${BENCH_REVIEWS_DIR:-./reviews}:/reviews
+      - ${BENCH_BACKUPS_DIR:-./backups}:/backups
+    command: ["python", "-m", "bench_app.backup"]
+    healthcheck:
+      disable: true
+    mem_limit: ${BENCH_BACKUP_MEM_LIMIT:-256m}
+    cpus: ${BENCH_BACKUP_CPUS:-0.25}
+
+  frontend:
+    image: ${BENCH_FRONTEND_IMAGE:-leaderboard-bench-frontend:latest}
+    pull_policy: never
+    container_name: ${BENCH_FRONTEND_CONTAINER_NAME:-benchmark-frontend}
+    restart: "no"
+    depends_on:
+      - backend
+    ports:
+      - "${BENCH_HOST_PORT:-8090}:8080"
+    mem_limit: ${BENCH_FRONTEND_MEM_LIMIT:-128m}
+    cpus: ${BENCH_FRONTEND_CPUS:-0.5}

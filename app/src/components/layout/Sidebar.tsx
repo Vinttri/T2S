@@ -1,0 +1,149 @@
+import React from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  PanelLeft,
+  Waypoints,
+  Sliders,
+} from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Separator } from '@/components/ui/separator';
+import { cn } from "@/lib/utils";
+import ThemeToggle from '@/components/ui/theme-toggle';
+
+interface SidebarProps {
+  className?: string;
+  onSchemaClick?: () => void;
+  isSchemaOpen?: boolean;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+  onSettingsClick?: () => void;
+}
+
+const SidebarIcon = ({ icon: Icon, label, active, onClick, href, testId }: {
+  icon: React.ElementType,
+  label: string,
+  active?: boolean,
+  onClick?: () => void,
+  href?: string,
+  testId?: string
+}) => (
+  <TooltipProvider delayDuration={300} skipDelayDuration={0}>
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>
+        {onClick ? (
+          <button
+            onClick={onClick}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+              active
+                ? 'bg-primary text-white'
+                : 'text-muted-foreground hover:bg-card hover:text-foreground'
+            }`}
+            data-testid={testId}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="sr-only">{label}</span>
+          </button>
+        ) : href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+              active
+                ? 'bg-primary text-white'
+                : 'text-muted-foreground hover:bg-card hover:text-foreground'
+            }`}
+            data-testid={testId}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="sr-only">{label}</span>
+          </a>
+        ) : (
+          <Link
+            to="#"
+            className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+              active
+                ? 'bg-primary text-white'
+                : 'text-muted-foreground hover:bg-card hover:text-foreground'
+            }`}
+            data-testid={testId}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="sr-only">{label}</span>
+          </Link>
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+
+const Sidebar = ({ className, onSchemaClick, isSchemaOpen, isCollapsed = false, onToggleCollapse, onSettingsClick }: SidebarProps) => {
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const isSettingsOpen = location.pathname === '/settings';
+  
+  const handleSettingsClick = () => {
+    if (onSettingsClick) {
+      onSettingsClick();
+    }
+    if (isSettingsOpen) {
+      navigate('/');
+    } else {
+      navigate('/settings');
+    }
+  };
+  
+  return (
+    <>
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-background transition-all duration-300",
+        // Only collapse on mobile (md:w-16 keeps it visible on desktop)
+        isCollapsed ? "w-0 -translate-x-full overflow-hidden md:w-16 md:translate-x-0" : "w-16",
+        className
+      )}>
+        <nav className="flex flex-col items-center gap-4 px-2 py-4">
+          {isMobile && (
+            <button
+              onClick={onToggleCollapse}
+              className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-card text-lg font-semibold text-foreground hover:bg-muted"
+              title="Toggle Sidebar (Mobile)"
+              data-testid="sidebar-toggle"
+            >
+              <PanelLeft className="h-5 w-5 transition-all group-hover:scale-110" />
+              <span className="sr-only">Toggle Sidebar</span>
+            </button>
+          )}
+          <ThemeToggle />
+          {/* <SidebarIcon icon={BrainCircuit} label="Query" active /> */}
+          <SidebarIcon
+            icon={Waypoints}
+            label="Schema"
+            active={isSchemaOpen}
+            onClick={onSchemaClick}
+            testId="schema-button"
+          />
+        </nav>
+      
+      <div className="flex-1 flex items-center justify-center">
+        <Separator orientation="horizontal" className="bg-border w-8" />
+      </div>
+      
+      <nav className="flex flex-col items-center gap-4 px-2 py-4">
+        <SidebarIcon icon={Sliders} label="Settings" active={isSettingsOpen} onClick={handleSettingsClick} testId="settings-button" />
+      </nav>
+    </aside>
+    </>
+  );
+};
+
+export default Sidebar;

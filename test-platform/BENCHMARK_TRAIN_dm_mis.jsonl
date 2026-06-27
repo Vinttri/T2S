@@ -1,0 +1,3 @@
+{"benchmark_id": "S1", "case_id": "train_dm_accounts", "difficulty": "Simple", "question": "Сколько всего счетов в справочнике v_d_account?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS account_count FROM v_d_account;"}
+{"benchmark_id": "S2", "case_id": "train_dm_contracts", "difficulty": "Simple", "question": "Сколько договоров РКО в таблице rko_contracts?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS contract_count FROM rko_contracts;"}
+{"benchmark_id": "S3", "case_id": "train_dm_roles", "difficulty": "Simple", "question": "Сколько ролей счетов в таблице v_account_role?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS role_count FROM v_account_role;"}

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <!-- title -->
+  <text x="40" y="34" font-size="20" font-weight="700" fill="#8b949e">Sports DB — Text-to-SQL benchmark results</text>
+  <text x="40" y="56" font-size="12" fill="#8b949e">L4 = result semantically correct (LLM judge) · completion model: gemma-12b · temperature 0</text>
+
+  <!-- ===== left: analytical L4 by difficulty (grouped bars) ===== -->
+  <!-- baseline -->
+  <line x1="55" y1="290" x2="430" y2="290" stroke="#8b949e" stroke-opacity="0.35" stroke-width="1"/>
+
+  <!-- legend -->
+  <rect x="250" y="78" width="12" height="12" rx="2" fill="#2ea043"/>
+  <text x="268" y="88" font-size="11" fill="#8b949e">passed (L4)</text>
+  <rect x="338" y="78" width="12" height="12" rx="2" fill="#8b949e" fill-opacity="0.20"/>
+  <text x="356" y="88" font-size="11" fill="#8b949e">total</text>
+
+  <!-- Simple 3/3 : total 132 (y158) pass 132 -->
+  <rect x="72"  y="158" width="56" height="132" rx="4" fill="#8b949e" fill-opacity="0.18"/>
+  <rect x="72"  y="158" width="56" height="132" rx="4" fill="#2ea043"/>
+  <text x="100" y="150" font-size="12" font-weight="600" fill="#8b949e" text-anchor="middle">3/3</text>
+  <text x="100" y="310" font-size="12" fill="#8b949e" text-anchor="middle">Simple</text>
+
+  <!-- Moderate 3/3 -->
+  <rect x="162" y="158" width="56" height="132" rx="4" fill="#8b949e" fill-opacity="0.18"/>
+  <rect x="162" y="158" width="56" height="132" rx="4" fill="#2ea043"/>
+  <text x="190" y="150" font-size="12" font-weight="600" fill="#8b949e" text-anchor="middle">3/3</text>
+  <text x="190" y="310" font-size="12" fill="#8b949e" text-anchor="middle">Moderate</text>
+
+  <!-- Hard 3/5 : total 220 (y70) pass 132 (y158) -->
+  <rect x="252" y="70"  width="56" height="220" rx="4" fill="#8b949e" fill-opacity="0.18"/>
+  <rect x="252" y="158" width="56" height="132" rx="4" fill="#2ea043"/>
+  <text x="280" y="62"  font-size="12" font-weight="600" fill="#8b949e" text-anchor="middle">3/5</text>
+  <text x="280" y="310" font-size="12" fill="#8b949e" text-anchor="middle">Hard</text>
+
+  <!-- Extra-Hard 2/3 : total 132 (y158) pass 88 (y202) -->
+  <rect x="342" y="158" width="56" height="132" rx="4" fill="#8b949e" fill-opacity="0.18"/>
+  <rect x="342" y="202" width="56" height="88"  rx="4" fill="#2ea043"/>
+  <text x="370" y="150" font-size="12" font-weight="600" fill="#8b949e" text-anchor="middle">2/3</text>
+  <text x="370" y="310" font-size="11" fill="#8b949e" text-anchor="middle">Extra-Hard</text>
+
+  <!-- ===== right: headline stats ===== -->
+  <line x1="460" y1="80" x2="460" y2="300" stroke="#8b949e" stroke-opacity="0.20" stroke-width="1"/>
+
+  <text x="610" y="138" font-size="44" font-weight="800" fill="#4c8eda" text-anchor="middle">11/14</text>
+  <text x="610" y="162" font-size="13" fill="#8b949e" text-anchor="middle">Analytical benchmark · 79% L4</text>
+
+  <line x1="510" y1="196" x2="710" y2="196" stroke="#8b949e" stroke-opacity="0.18" stroke-width="1"/>
+
+  <text x="610" y="252" font-size="44" font-weight="800" fill="#2ea043" text-anchor="middle">14/14</text>
+  <text x="610" y="276" font-size="13" fill="#8b949e" text-anchor="middle">Factual benchmark · 100%</text>
+
+  <text x="610" y="320" font-size="11" fill="#8b949e" text-anchor="middle">non-L4 = gold↮knowledge conflicts, not pipeline failures</text>
+</svg>

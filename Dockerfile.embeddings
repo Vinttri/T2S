@@ -1,0 +1,40 @@
+# T2S embedding service — a SEPARATE sibling container, part of the delivery.
+# Serves the SOTA Qwen3-Embedding-0.6B model over an OpenAI-compatible API
+# (embedding_server.py), auto-selecting the device CUDA -> MPS -> CPU. The model
+# and its settings are intentionally fixed (best defaults for retrieval quality)
+# and are NOT exposed in the app's settings.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    HF_HOME=/opt/hf-cache \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# torch (CUDA-enabled wheel on linux/amd64, CPU on arm64) + sentence-transformers
+# + a transformers new enough for the qwen3 embedding architecture, plus the tiny
+# HTTP server deps. Kept BEFORE the model prepull + source COPY so they cache.
+RUN pip install --upgrade pip \
+    && pip install \
+        torch \
+        "transformers>=5" \
+        sentence-transformers \
+        fastapi \
+        "uvicorn[standard]" \
+        pydantic
+
+# Bake the model into the image so the container is fully self-contained (no
+# network needed at runtime, reproducible delivery).
+RUN python -c "import huggingface_hub; huggingface_hub.snapshot_download('Qwen/Qwen3-Embedding-0.6B')"
+
+COPY embedding_server.py /app/embedding_server.py
+
+EXPOSE 7997
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=30 --start-period=90s \
+    CMD curl -fsS http://127.0.0.1:7997/health >/dev/null || exit 1
+
+CMD ["uvicorn", "embedding_server:app", "--host", "0.0.0.0", "--port", "7997"]
