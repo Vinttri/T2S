@@ -24,12 +24,10 @@ Optional flags (everything has a default — no flag is required):
   completion LLM**. Defaults to LM Studio on the host: `http://host.docker.internal:1234/v1`,
   model `openai/qwen`. `localhost`/`127.0.0.1` you pass are auto-rewritten to
   `host.docker.internal` (the app is containerized).
-- `--no-tests` — skip bringing up the benchmark platform.
 
 `install.sh` is the single entry point: it writes `.env`, builds the image,
-starts Postgres + T2S, **auto-indexes** the Sports DB into the graph, loads the
-generic rules + business knowledge, and brings up the (configured-but-not-run)
-benchmark platform.
+starts Postgres + embeddings + T2S, **auto-indexes** both demo DBs into graphs,
+and loads their generic rules + business knowledge.
 
 ---
 
@@ -53,11 +51,6 @@ benchmark platform.
    relational DB, **pre-seeded** on first boot from `db-init/01_sports_events_large.sql`
    (the **Sports** demo/test DB: 61 tables, 28,536 rows, F1-style motorsport).
    Volume `t2s_pg_data`. Reached by the app as `postgresql://t2s:t2s@postgres:5432/sports_events_large`.
-4. **`test-platform/`** — a separate benchmark stack (FastAPI + worker + frontend),
-   configured to test T2S on the Sports benchmark. Brought up by
-   `test-platform/setup-t2s.sh` (invoked by `install.sh`). Dashboard on port **8090**.
-   It attaches to the shared docker network **`t2s-net`** so it reaches
-   `t2s-app:5000` and `t2s-postgres:5432` by name.
 
 Embeddings run in their **own container**; only the **completion LLM is external**.
 
@@ -88,7 +81,7 @@ Dockerfile          app image (frontend build + backend + FalkorDB)
 Dockerfile.embeddings  embedding service image (torch + sentence-transformers + Qwen3-Embedding model)
 start.sh            app container entrypoint (FalkorDB + uvicorn)
 install.sh          one-command installer (zero-arg)
-test-platform/      benchmark stack + setup-t2s.sh
+BENCHMARK.md        questions + gold SQL + expected values (self-verify, both DBs)
 .t2s-build-notes.md internal build decisions (gitignored)
 ```
 
@@ -139,14 +132,11 @@ bare db name** (`sports_events_large`) as `{graph_id}`.
 
 ---
 
-## Testing (benchmark platform)
+## Verifying
 
-`test-platform/setup-t2s.sh` builds the bench images, brings them up on `t2s-net`,
-points the scoring DSN at `t2s-postgres`, and seeds a **T2S connector**
-(`http://t2s-app:5000/graphs/sports_events_large/sql`, extract field `sql`) + the
-**sports dataset** (`BENCHMARK_sport_events.jsonl`, 54 cases). It does **not** start
-a run — open the dashboard (`http://localhost:8090/`), pick dataset=sports +
-connector=T2S, and Start Run. Each run costs LLM calls.
+`BENCHMARK.md` lists every question, its gold SQL, and the expected value for both
+shipped DBs. Verify head-less, e.g.:
+`curl -s -X POST http://localhost:5050/graphs/<db>/sql -H 'Content-Type: application/json' -d '{"question":"…","use_knowledge":true}'`
 
 ---
 

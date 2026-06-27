@@ -55,7 +55,7 @@ git clone https://github.com/Vinttri/T2S.git && cd T2S
 | 🌍 **Multilingual** | ask in any language; a country/demonym normalizer + entity extraction bridge the question to an English schema. |
 | 🔍 **Auditable** | every answer ships the SQL, the result rows, **per-column evidence**, and the kept/dropped schema. |
 | 🏠 **Fully local** | Docker, Apple-Silicon friendly; CPU embeddings bundled; bring your own local/hosted LLM. |
-| 📊 **Benchmark platform** | a self-hosted leaderboard that scores any Text-to-SQL engine with an LLM judge. |
+| 🔬 **Self-verify set** | questions + gold SQL + expected values for both DBs, so anyone can check the engine ([`BENCHMARK.md`](BENCHMARK.md)). |
 
 ---
 
@@ -72,7 +72,6 @@ OpenAI-compatible API (default: [LM Studio](https://lmstudio.ai/) on the host at
              --llm-api-key sk-... --llm-model openai/my-model
 ./install.sh --embedding-api-base http://127.0.0.1:1234 \   # OPTIONAL external embeddings
              --embedding-model openai/my-embed --embedding-dimension 768
-./install.sh --no-tests                        # skip the benchmark platform
 ```
 
 `install.sh` builds the stack, seeds **both** demo DBs into Postgres, indexes each
@@ -240,7 +239,7 @@ api/               FastAPI backend
   loaders/         postgres / mysql / snowflake / impala introspection
 business-rules/    user_rules.md + *_business_knowledge.md (loaded at index time)
 db-init/           the two demo DBs (seeded into Postgres on first boot)
-test-platform/     benchmark + comparison leaderboard (see tests.md)
+BENCHMARK.md       questions + gold SQL + expected values (self-verify, both DBs)
 install.sh         one-command local install
 docker-compose.yml postgres + embeddings + t2s
 ```
@@ -302,10 +301,11 @@ Everything below is available in the **UI** and as a **REST/MCP API**
   **execute** the query, with an **execute → heal** loop that repairs dialect/exec
   errors against the real error message.
 
-**Memory & benchmarking**
+**Memory & self-verification**
 - **Memory** — advisory prior-query examples (toggle).
-- **Benchmark/leaderboard platform** (`:8090`) — score any Text-to-SQL engine with
-  an LLM judge and compare engines side by side.
+- **Self-verify set** — [`BENCHMARK.md`](BENCHMARK.md) lists every question, its gold
+  SQL, and the expected value for **both** DBs, so anyone can reproduce and check
+  the engine's answers.
 
 ---
 
@@ -315,7 +315,7 @@ T2S is **inspired by [QueryWeaver](https://github.com/FalkorDB/QueryWeaver)** �
 open-source, graph-based Text-to-SQL engine by [FalkorDB](https://www.falkordb.com/).
 It keeps that graph-grounded foundation and the **FalkorDB** graph engine, and adds
 a localized, fully-offline deployment, a hardened multi-agent pipeline, data-grounded
-indexing, deterministic sqlglot validators, and a benchmark/leaderboard platform.
+indexing, and deterministic sqlglot validators.
 
 Thanks to the FalkorDB team and the QueryWeaver project.
 

@@ -1,3 +1,0 @@
-{"benchmark_id": "S1", "case_id": "train_count_drivers", "difficulty": "Simple", "question": "How many drivers are in the database?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS driver_count FROM drivers;"}
-{"benchmark_id": "S2", "case_id": "train_count_circuits", "difficulty": "Simple", "question": "How many circuits are there?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS circuit_count FROM circuits;"}
-{"benchmark_id": "S3", "case_id": "train_count_constructors", "difficulty": "Simple", "question": "How many constructors are in the database?", "normal_phrasing": "", "conditions": "", "gold_sql": "SELECT COUNT(*) AS constructor_count FROM constructors;"}

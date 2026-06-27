@@ -68,7 +68,7 @@ and the FK join the embedding model ranks low.
 
 ### 2c. Sports — factual set (14 cases, all ✅)
 
-From [`BENCHMARK_sport_events_factual.jsonl`](test-platform/BENCHMARK_sport_events_factual.jsonl):
+From the factual set ([`BENCHMARK.md`](BENCHMARK.md) §2):
 `1125` Grand Prix · `861` drivers · `77` circuits · `107` Italian-circuit GPs ·
 `22` races in 2023 · British = `108` drivers · 2024 = `24` races · `86` poles ·
 fastest lap `57.481`s · avg pit `83.399`s · Hamilton `18` poles · Mercedes `21`
@@ -79,7 +79,7 @@ poles · `35` countries.
 ## 3. Sports — analytical benchmark (14 cases)
 
 **11 / 14 = 79 % L4** (semantic judge) on
-[`BENCHMARK_sport_events.jsonl`](test-platform/BENCHMARK_sport_events.jsonl).
+the analytical set ([`BENCHMARK.md`](BENCHMARK.md) §3).
 
 <div align="center">
   <img src="docs/sports_benchmark.svg" alt="Sports DB benchmark — analytical L4 by difficulty + factual" width="720">
@@ -121,19 +121,12 @@ the benchmark owner.
 
 ---
 
-## 4. Run it yourself — the comparison leaderboard
+## 4. Verify it yourself
 
-`install.sh` brings up a self-hosted **leaderboard** platform (FastAPI runner +
-dashboard) configured against T2S (unless `--no-tests`):
-
-```text
-Leaderboard / comparison UI:  http://localhost:8090/
-```
-
-Pick a benchmark JSONL + a judge model, select one or more engines (T2S is
-pre-configured), **Run** → per-case L0–L4 verdicts, totals, and a cross-engine
-leaderboard. It is self-hosted (it carries connector configs/secrets), so it is
-not a public URL.
+Every question, its **gold SQL**, and the **expected value** for **both** databases
+are listed in **[`BENCHMARK.md`](BENCHMARK.md)** — ask each question (UI or the
+`curl` below) and compare. The gold SQL is included so you can re-run it directly on
+the database and see how each expected value is derived.
 
 ---
 

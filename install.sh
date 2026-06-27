@@ -6,13 +6,11 @@
 #   ./install.sh --port 8080     # optional: change the UI/API host port
 #   ./install.sh --llm-api-base http://127.0.0.1:1234 --llm-api-key sk-... --llm-model openai/qwen
 #   ./install.sh --embedding-api-base http://127.0.0.1:1234 --embedding-model openai/my-embed --embedding-dimension 768
-#   ./install.sh --no-tests      # skip bringing up the benchmark test platform
 #
 # Brings up: Postgres (separate container, pre-seeded with BOTH demo DBs:
 #            sports_events_large + cybermarket_pattern_large) +
 #            Embeddings (separate container: Qwen3-Embedding-0.6B, auto GPU/CPU) +
-#            T2S app (FalkorDB + frontend) +
-#            the benchmark test platform (separate containers; not executed).
+#            T2S app (FalkorDB + frontend).
 # Then indexes BOTH Postgres DBs into graphs and loads their knowledge + rules.
 #
 # Embeddings: ZERO-CONFIG — if you pass no --embedding-* flag, T2S uses the
@@ -34,7 +32,6 @@ EMB_BASE=""                         # empty => bundled CPU embedding container
 EMB_KEY=""
 EMB_MODEL=""
 EMB_DIM=""
-WITH_TESTS=true
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -46,8 +43,7 @@ while [ "$#" -gt 0 ]; do
     --embedding-api-key)  EMB_KEY="${2:?}"; shift 2 ;;
     --embedding-model)    EMB_MODEL="${2:?}"; shift 2 ;;
     --embedding-dimension) EMB_DIM="${2:?}"; shift 2 ;;
-    --no-tests)           WITH_TESTS=false; shift ;;
-    -h|--help)            sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)            sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown arg: $1 (see --help)" >&2; exit 1 ;;
   esac
 done
@@ -155,12 +151,6 @@ PY
 index_db sports_events_large       sports_business_knowledge.md
 index_db cybermarket_pattern_large cyber_business_knowledge.md
 
-# ---- 5. benchmark test platform (separate containers, configured for T2S; NOT run) ----
-if [ "$WITH_TESTS" = true ] && [ -x test-platform/setup-t2s.sh ]; then
-  echo "[t2s] setting up benchmark test platform (configured against T2S; not executed)..."
-  test-platform/setup-t2s.sh || echo "[t2s] test platform setup reported issues — see above"
-fi
-
 echo
 echo "================= T2S READY ================="
 echo " UI / API : $APP/"
@@ -172,5 +162,5 @@ else
   echo " Embedding: bundled container t2s-embeddings (Qwen3-Embedding-0.6B, auto GPU/CPU)"
 fi
 echo " LLM      : $LLM_MODEL @ $LLM_BASE  (external — ensure it is running)"
-[ "$WITH_TESTS" = true ] && echo " Tests    : http://localhost:8090/  (benchmark platform, configured; run from its UI)"
+echo " Verify   : see BENCHMARK.md — questions + gold SQL + expected values for both DBs"
 echo "============================================="

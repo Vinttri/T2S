@@ -1,1 +1,0 @@
-{"benchmark_id": "S1", "case_id": "dm_mis_1", "difficulty": "Simple", "question": "Напиши запрос который выведет исходящий остаток по счету 45818810281006000001 на дату 2025-04-20", "normal_phrasing": "", "conditions": "", "gold_sql": "select BALANCE_OUT\nfrom core_tmp.V_F_ACCOUNT_REST\nwhere REPORT_DATE = '2025-04-20' and ACCOUNT_NBR = '45818810281006000001';"}

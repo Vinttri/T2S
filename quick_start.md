@@ -33,7 +33,6 @@ One command builds the whole stack, indexes a demo database, and loads its rules
              [--llm-api-base URL] [--llm-api-key KEY] [--llm-model MODEL]
              [--embedding-api-base URL] [--embedding-api-key KEY]
              [--embedding-model MODEL] [--embedding-dimension N]
-             [--no-tests]
              [-h | --help]
 ```
 
@@ -47,7 +46,6 @@ One command builds the whole stack, indexes a demo database, and loads its rules
 | `--embedding-api-key KEY` | `local` | API key for the embedding endpoint. |
 | `--embedding-model MODEL` | `openai/qwen3-embedding` | Embedding model id (only with `--embedding-api-base`). |
 | `--embedding-dimension N` | `1024` | Vector size the graph is indexed with — must match the embedding model (change ⇒ re-index). |
-| `--no-tests` | _(tests on)_ | Skip bringing up the benchmark/leaderboard platform. |
 | `-h`, `--help` | — | Print usage and exit. |
 
 > **Embeddings need zero setup.** With no `--embedding-*` flag, T2S serves
@@ -63,7 +61,6 @@ Examples:
              --llm-api-key sk-... --llm-model openai/qwen2.5-coder
 ./install.sh --llm-api-base https://api.example.com/v1 \ # a remote OpenAI-compatible API
              --llm-api-key sk-... --llm-model gpt-4o-mini
-./install.sh --no-tests                                 # skip the benchmark platform
 ```
 
 ---
@@ -85,8 +82,6 @@ Examples:
    descriptions → value + JSON-leaf samples → embeddings) via `POST /database`,
    then **loads** its business knowledge (`*_business_knowledge.md`) and the
    general user-rules (`user_rules.md`).
-5. **(unless `--no-tests`)** sets up the benchmark/leaderboard platform on
-   `:8090` — configured against T2S but **not executed** (run it from its UI).
 
 On success it prints the URLs:
 
@@ -97,7 +92,7 @@ On success it prints the URLs:
  DBs      : sports_events_large (Formula-1, 61 tables) + cybermarket_pattern_large (marketplace, 56 tables)
  Embedding: bundled container t2s-embeddings (Qwen3-Embedding-0.6B, auto GPU/CPU)
  LLM      : openai/gemma-4-12b-it-qat @ http://host.docker.internal:1234/v1
- Tests    : http://localhost:8090/   (benchmark platform, run from its UI)
+ Verify   : see BENCHMARK.md (questions + gold SQL + expected values, both DBs)
 =============================================
 ```
 

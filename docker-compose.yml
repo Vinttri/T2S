@@ -99,8 +99,8 @@ volumes:
   t2s_pg_data:
   t2s_graph_data:
 
-# Named network so the separate test-platform stack can attach (external) and
-# reach the app + Postgres by container name (t2s-app, t2s-postgres).
+# Named network so sibling tools can attach (external) and reach the app +
+# Postgres by container name (t2s-app, t2s-postgres).
 networks:
   default:
     name: t2s-net
