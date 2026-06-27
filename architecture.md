@@ -177,6 +177,24 @@ flowchart TD
 Re-index is **crash-safe** (backup → drop → re-pull → restore on failure) and
 preserves uploaded documents, knowledge, and user-rules.
 
+**Index-time vs runtime database access.** T2S talks to the source database at
+*both* stages:
+
+- **At index time** it not only introspects the schema — it **SELECTs real data**:
+  per-column **sample rows**, low-cardinality `SELECT DISTINCT` values, and
+  `DISTINCT` **JSON-leaf** values. Those values are baked into the per-column
+  documents (the RAG embeddings), power **value-routing** (a literal like `Italy`
+  is matched to the column whose sampled domain contains it), and are shown to the
+  generator as `Possible values: …` / `JSON fields: …`.
+- **At query time** it connects to the live DB again to **EXPLAIN** the candidate
+  SQL (a preflight check that returns no rows) and to **execute** it; on a database
+  error the **healer** re-runs and repairs from the real message
+  (`execute_with_cache` → execute→heal). The `SchemaTopupAgent` can also pull a
+  missing column from the graph mid-generation.
+
+So the engine both **learns from the data** at index time and **reaches into the
+live database** while it is answering.
+
 ---
 
 ## 5. Agents and their jobs

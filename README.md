@@ -247,6 +247,68 @@ docker-compose.yml postgres + embeddings + t2s
 
 ---
 
+## 🧰 Capabilities
+
+Everything below is available in the **UI** and as a **REST/MCP API**
+(`/openapi.json`) — T2S works head-less too.
+
+**Ask & answer**
+- Natural-language → one correct, read-only **SQL**, in **any language**.
+- **Per-column evidence** (which table.column / JSON path each value came from) and
+  **commented SQL** (step-by-step) for auditing.
+- **Follow-ups** with session context ("…and only for 2023?").
+- **Off-topic guard** — a clear "this database doesn't contain…" reply instead of a wrong query.
+
+**Connect & manage databases**
+- **Load any database** — Postgres · MySQL · Snowflake · Impala; one graph per DB
+  (`POST /database`). Switch between indexed DBs; **delete** a graph (trash).
+- **Crash-safe re-index / refresh** (`POST /graphs/{id}/refresh`) — backup → drop →
+  re-pull → restore on failure; preserves your uploaded docs, knowledge, rules.
+
+**Load schema & metadata (any format)**
+- **Upload Schema** (`POST /database/enrich`) — drop in **any** document
+  (`.md/.csv/.pdf/.docx/.xlsx/.json/.yml/.txt`: data dictionaries, glossaries,
+  specs). An agent extracts grounded **table/column descriptions** and **gap-only
+  primary keys, foreign keys, NOT-NULL** marks — so you can **add PK/FK the
+  database itself doesn't declare**. The DB stays authoritative (types never
+  changed; only gaps filled; endpoints must exist — no invented schema).
+- **Data-grounded indexing** — real **value samples, low-card distinct values and
+  JSON-leaf values are SELECTed from the DB** and used in retrieval + shown to the
+  generator.
+
+**Business knowledge & rules**
+- **Load / augment business knowledge** incrementally (`PUT …/knowledge`) — metric
+  & term definitions, each stored as its own embedded `:Knowledge` node; read it
+  back any time. Chained metrics are expanded automatically.
+- **User-rules** (`PUT …/user-rules`) — general, DB-agnostic behavioural guidance.
+
+**Inspect**
+- **Schema panel** per answer — the tables/columns the query **used** (selected) vs
+  **dropped** (removed), with descriptions, so you see what the retriever kept.
+- **Loaded files** (`GET …/loaded-files`) — list / download / delete every schema
+  doc & knowledge file you've loaded, with index-status lamps.
+
+**Settings**
+- **Live per-user** (Settings UI → stored on `:AppSettings`, overrides env):
+  completion **model**, **temperature**, and other runtime knobs (`GET·PUT /prefs`,
+  `GET/POST /runtime-models`, `GET /embedding-info`).
+- **Embeddings** — bundled **CPU** container by default, or point at any
+  OpenAI-compatible endpoint.
+- **Env knobs** — retrieval/pruning caps, knowledge/rule RAG, healing, the
+  reproducible "today" for as-of questions (see [§ Settings](#️-settings) above).
+
+**Runtime DB access**
+- At query time T2S connects to the live DB to **EXPLAIN (preflight)** and
+  **execute** the query, with an **execute → heal** loop that repairs dialect/exec
+  errors against the real error message.
+
+**Memory & benchmarking**
+- **Memory** — advisory prior-query examples (toggle).
+- **Benchmark/leaderboard platform** (`:8090`) — score any Text-to-SQL engine with
+  an LLM judge and compare engines side by side.
+
+---
+
 ## 🙏 Credits
 
 T2S is **inspired by [QueryWeaver](https://github.com/FalkorDB/QueryWeaver)** — the
